@@ -286,7 +286,8 @@ const BLPoc = (() => {
 
   /**
    * Render correlation map to canvas with JET colormap.
-   * Manual implementation — cv.applyColorMap not available in all builds.
+   * Scales up small maps (e.g. 20×20 BLPOC) to a fixed display size
+   * so the result is always visible and consistent.
    */
   function renderCorrelationMap(canvas, mapData, rows, cols) {
     // Find min/max
@@ -297,21 +298,40 @@ const BLPoc = (() => {
     }
     const range = maxV - minV || 1;
 
-    // Create RGBA image data
+    // Target display size — keep the map large enough to see clearly
+    const DISPLAY_SIZE = 256;
+
+    // Compute scale factor (integer, minimum 1)
+    const scale = Math.max(1, Math.floor(DISPLAY_SIZE / Math.max(rows, cols)));
+    const dispW = cols * scale;
+    const dispH = rows * scale;
+
+    // Create RGBA image data at the scaled size
     const ctx = canvas.getContext('2d');
-    canvas.width = cols;
-    canvas.height = rows;
-    const imgData = ctx.createImageData(cols, rows);
+    canvas.width = dispW;
+    canvas.height = dispH;
+    const imgData = ctx.createImageData(dispW, dispH);
     const pixels = imgData.data;
 
-    for (let i = 0; i < rows * cols; i++) {
-      const val = (mapData[i] - minV) / range;
-      const [r, g, b] = jetColormap(val);
-      const pIdx = i * 4;
-      pixels[pIdx]     = r;
-      pixels[pIdx + 1] = g;
-      pixels[pIdx + 2] = b;
-      pixels[pIdx + 3] = 255;
+    // Fill each block of scale×scale pixels with the JET color
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const val = (mapData[r * cols + c] - minV) / range;
+        const [jr, jg, jb] = jetColormap(val);
+
+        // Paint the scale×scale block
+        for (let dy = 0; dy < scale; dy++) {
+          for (let dx = 0; dx < scale; dx++) {
+            const px = c * scale + dx;
+            const py = r * scale + dy;
+            const pIdx = (py * dispW + px) * 4;
+            pixels[pIdx]     = jr;
+            pixels[pIdx + 1] = jg;
+            pixels[pIdx + 2] = jb;
+            pixels[pIdx + 3] = 255;
+          }
+        }
+      }
     }
 
     ctx.putImageData(imgData, 0, 0);

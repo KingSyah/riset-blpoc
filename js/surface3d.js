@@ -37,8 +37,8 @@ const Surface3D = (() => {
     scene.background = new THREE.Color(0x0a0e17);
 
     camera = new THREE.PerspectiveCamera(50, w / h, 0.1, 1000);
-    camera.position.set(1.8, 1.5, 1.8);
-    camera.lookAt(0.3, 0, 0.3);
+    camera.position.set(1.5, 1.5, 1.5);
+    camera.lookAt(0.5, 0.1, 0.5);
 
     renderer = new THREE.WebGLRenderer({ canvas: container, antialias: true });
     renderer.setSize(w, h);
@@ -75,8 +75,8 @@ const Surface3D = (() => {
     // Mouse rotation
     let isDragging = false;
     let prevMouse = { x: 0, y: 0 };
-    let rotY = Math.PI * 0.25;
-    let rotX = 0.5;
+    let rotY = Math.PI * 0.75;
+    let rotX = 0.55;
 
     container.addEventListener('mousedown', (e) => {
       isDragging = true;
@@ -107,7 +107,7 @@ const Surface3D = (() => {
       camera.position.x = dist * Math.sin(rotY) * Math.cos(rotX);
       camera.position.y = dist * Math.sin(rotX);
       camera.position.z = dist * Math.cos(rotY) * Math.cos(rotX);
-      camera.lookAt(0.3, 0.1, 0.3);
+      camera.lookAt(0.5, 0.1, 0.5);
     }
 
     isInitialized = true;
