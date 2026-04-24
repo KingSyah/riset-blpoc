@@ -144,6 +144,10 @@ document.getElementById('btnView3D').addEventListener('click', () => {
   }
 });
 
+document.getElementById('btnReset3D').addEventListener('click', () => {
+  Surface3D.resetView();
+});
+
 window.addEventListener('resize', () => {
   if (viewMode === '3d') Surface3D.resize();
 });

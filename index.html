@@ -37,11 +37,17 @@
   color: white;
 }
 
+.view-toggle button:not(.active):hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
 #canvas3D {
   width: 100%;
   height: 300px;
   border-radius: 4px;
   display: none;
+  cursor: grab;
 }
 
 .canvas-wrap canvas.visible,
@@ -160,6 +166,7 @@
         <div class="view-toggle">
           <button class="active" id="btnView2D">2D</button>
           <button id="btnView3D">3D</button>
+          <button id="btnReset3D" title="Reset 3D view">↺</button>
         </div>
       </div>
       <div class="canvas-wrap">

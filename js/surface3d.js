@@ -72,42 +72,92 @@ const Surface3D = (() => {
 
     scene.add(axesGroup);
 
-    // Mouse rotation
+    // Orbit state
+    const INITIAL_ROT_Y = Math.PI * 0.75;
+    const INITIAL_ROT_X = 0.55;
+    let rotY = INITIAL_ROT_Y;
+    let rotX = INITIAL_ROT_X;
+    let orbitDist = camera.position.length();
+    const CENTER = new THREE.Vector3(0.5, 0.1, 0.5);
+
+    // Mouse drag
     let isDragging = false;
     let prevMouse = { x: 0, y: 0 };
-    let rotY = Math.PI * 0.75;
-    let rotX = 0.55;
 
     container.addEventListener('mousedown', (e) => {
       isDragging = true;
       prevMouse = { x: e.clientX, y: e.clientY };
+      container.style.cursor = 'grabbing';
     });
 
-    container.addEventListener('mousemove', (e) => {
+    window.addEventListener('mousemove', (e) => {
       if (!isDragging) return;
       const dx = e.clientX - prevMouse.x;
       const dy = e.clientY - prevMouse.y;
-      rotY += dx * 0.005;
-      rotX = Math.max(0.1, Math.min(1.2, rotX + dy * 0.005));
+      rotY -= dx * 0.005;   // drag right → rotate clockwise
+      rotX += dy * 0.005;   // drag down → lower view (not inverted)
+      rotX = Math.max(0.1, Math.min(1.2, rotX));
       prevMouse = { x: e.clientX, y: e.clientY };
       updateCamera();
     });
 
-    container.addEventListener('mouseup', () => isDragging = false);
-    container.addEventListener('mouseleave', () => isDragging = false);
+    window.addEventListener('mouseup', () => {
+      isDragging = false;
+      container.style.cursor = 'grab';
+    });
+
+    // Touch drag (mobile)
+    let touchId = null;
+    let prevTouch = { x: 0, y: 0 };
+
+    container.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      const t = e.touches[0];
+      touchId = t.identifier;
+      prevTouch = { x: t.clientX, y: t.clientY };
+    }, { passive: true });
+
+    container.addEventListener('touchmove', (e) => {
+      if (touchId === null) return;
+      for (const t of e.changedTouches) {
+        if (t.identifier !== touchId) continue;
+        const dx = t.clientX - prevTouch.x;
+        const dy = t.clientY - prevTouch.y;
+        rotY -= dx * 0.005;
+        rotX += dy * 0.005;
+        rotX = Math.max(0.1, Math.min(1.2, rotX));
+        prevTouch = { x: t.clientX, y: t.clientY };
+        updateCamera();
+      }
+    }, { passive: true });
+
+    container.addEventListener('touchend', (e) => {
+      for (const t of e.changedTouches) {
+        if (t.identifier === touchId) { touchId = null; break; }
+      }
+    }, { passive: true });
 
     // Scroll zoom
     container.addEventListener('wheel', (e) => {
       e.preventDefault();
-      camera.position.multiplyScalar(e.deltaY > 0 ? 1.05 : 0.95);
+      orbitDist *= (e.deltaY > 0 ? 1.08 : 0.92);
+      orbitDist = Math.max(0.5, Math.min(5, orbitDist));
+      updateCamera();
     }, { passive: false });
 
     function updateCamera() {
-      const dist = camera.position.length();
-      camera.position.x = dist * Math.sin(rotY) * Math.cos(rotX);
-      camera.position.y = dist * Math.sin(rotX);
-      camera.position.z = dist * Math.cos(rotY) * Math.cos(rotX);
-      camera.lookAt(0.5, 0.1, 0.5);
+      camera.position.x = CENTER.x + orbitDist * Math.sin(rotY) * Math.cos(rotX);
+      camera.position.y = CENTER.y + orbitDist * Math.sin(rotX);
+      camera.position.z = CENTER.z + orbitDist * Math.cos(rotY) * Math.cos(rotX);
+      camera.lookAt(CENTER);
+    }
+
+    // Reset to initial view
+    function resetView() {
+      rotY = INITIAL_ROT_Y;
+      rotX = INITIAL_ROT_X;
+      orbitDist = Math.sqrt(1.5*1.5 + 1.5*1.5 + 1.5*1.5);
+      updateCamera();
     }
 
     isInitialized = true;
@@ -203,5 +253,5 @@ const Surface3D = (() => {
     renderer.setSize(w, h);
   }
 
-  return { init, render, resize };
+  return { init, render, resize, resetView };
 })();
