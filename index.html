@@ -1,50 +1,161 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Visualizer Jurnal: Cross-Spectral Face Matching</title>
-    <script async src="https://docs.opencv.org/4.5.4/opencv.js" type="text/javascript"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script async src="https://docs.opencv.org/4.5.4/opencv.js" onload="onOpenCvReady()" type="text/javascript"></script>
 </head>
 <body class="bg-slate-900 text-white p-8">
-    <h1 class="text-2xl font-bold mb-4">POC/BLPOC Face Matching Visualizer</h1>
-    
-    <div class="grid grid-cols-2 gap-8">
-        <div class="bg-slate-800 p-6 rounded-lg">
-            <h2 class="text-xl mb-4 text-blue-400">Parameter Jurnal</h2>
-            
-            <label class="block mb-2">Pilih Pasangan Citra (1-100):</label>
-            <input type="range" id="imageIndex" min="1" max="100" value="1" class="w-full mb-4">
-            
-            <label class="block mb-2 text-sm">Bandwidth Limit (BLPOC): <span id="bwVal">1.0</span></label>
-            <input type="range" id="bandwidth" min="0.1" max="1.0" step="0.1" value="1.0" class="w-full mb-4">
-            
-            <label class="block mb-2 text-sm">Windowing (Alpha): <span id="winVal">0.5</span></label>
-            <input type="range" id="windowing" min="0" max="1" step="0.1" value="0.5" class="w-full">
-        </div>
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-3xl font-bold mb-2">POC/BLPOC Face Matching Visualizer</h1>
+        <p class="text-slate-400 mb-8" id="status">Status: Memuat OpenCV.js...</p>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div class="bg-slate-800 p-6 rounded-lg col-span-1">
+                <h2 class="text-xl font-semibold mb-6 text-blue-400">Parameter Kontrol</h2>
+                
+                <div class="mb-6">
+                    <label class="block mb-2 font-medium">Pilih Pasangan Citra: <span id="idVal" class="text-blue-300">1</span></label>
+                    <input type="range" id="imageIndex" min="1" max="2" value="1" class="w-full cursor-pointer">
+                    <p class="text-xs text-slate-400 mt-1">Mengambil dari kingsyah.github.io</p>
+                </div>
+                
+                <div class="mb-6">
+                    <label class="block mb-2 font-medium text-sm">Bandwidth Limit (BLPOC): <span id="bwVal" class="text-blue-300">1.0</span></label>
+                    <input type="range" id="bandwidth" min="0.1" max="1.0" step="0.1" value="1.0" class="w-full cursor-pointer">
+                </div>
+                
+                <div class="mb-6">
+                    <label class="block mb-2 font-medium text-sm">Windowing (Alpha): <span id="winVal" class="text-blue-300">0.5</span></label>
+                    <input type="range" id="windowing" min="0" max="1" step="0.1" value="0.5" class="w-full cursor-pointer">
+                </div>
 
-        <div class="grid grid-cols-2 gap-4">
-            <div>
-                <p class="text-center text-xs mb-1">Visual (Visible)</p>
-                <canvas id="canvasVis" class="w-full border border-slate-700"></canvas>
+                <button id="processBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded disabled:opacity-50">
+                    Proses OpenCV
+                </button>
             </div>
-            <div>
-                <p class="text-center text-xs mb-1">Thermal (Infrared)</p>
-                <canvas id="canvasTerm" class="w-full border border-slate-700"></canvas>
-            </div>
-            <div class="col-span-2">
-                <p class="text-center text-xs mb-1">Phase Correlation Map (The Peak)</p>
-                <canvas id="canvasResult" class="w-full h-48 bg-black"></canvas>
+
+            <div class="col-span-2 grid grid-cols-2 gap-4">
+                <div class="bg-slate-800 p-4 rounded-lg">
+                    <p class="text-center font-medium mb-2">Citra Visual (Visible)</p>
+                    <canvas id="canvasVis" class="w-full bg-black border border-slate-700 aspect-[3/4] object-contain"></canvas>
+                </div>
+                <div class="bg-slate-800 p-4 rounded-lg">
+                    <p class="text-center font-medium mb-2">Citra Termal (Infrared)</p>
+                    <canvas id="canvasTerm" class="w-full bg-black border border-slate-700 aspect-[3/4] object-contain"></canvas>
+                </div>
+                <div class="col-span-2 bg-slate-800 p-4 rounded-lg">
+                    <p class="text-center font-medium mb-2">Phase Correlation Map (Peak)</p>
+                    <canvas id="canvasResult" class="w-full h-64 bg-black border border-slate-700"></canvas>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
-        // Logika OpenCV.js akan ditaruh di sini
-        // 1. Fetch gambar dari Cloudflare R2 berdasarkan slider 'imageIndex'
-        // 2. Jalankan cv.dft() untuk kedua gambar
-        // 3. Terapkan Bandwidth limit dari slider 'bandwidth'
-        // 4. Hitung Phase Correlation
-        // 5. Gambar hasilnya di canvasResult
+        // --- Konfigurasi URL GitHub Pages ---
+        const GITHUB_BASE_URL = "https://kingsyah.github.io/riset-blpoc/dataset";
+        
+        let cvReady = false;
+
+        // Fungsi ini dipanggil otomatis ketika OpenCV.js selesai dimuat
+        function onOpenCvReady() {
+            cvReady = true;
+            document.getElementById('status').innerText = "Status: OpenCV.js Siap!";
+            document.getElementById('status').classList.replace('text-slate-400', 'text-green-400');
+            loadImagesAndDraw(); // Muat gambar pertama kali
+        }
+
+        // Event Listener untuk UI
+        document.getElementById('imageIndex').addEventListener('input', (e) => {
+            document.getElementById('idVal').innerText = e.target.value;
+            loadImagesAndDraw(); // Muat ulang gambar saat slider digeser
+        });
+
+        document.getElementById('bandwidth').addEventListener('input', (e) => {
+            document.getElementById('bwVal').innerText = e.target.value;
+        });
+
+        document.getElementById('windowing').addEventListener('input', (e) => {
+            document.getElementById('winVal').innerText = e.target.value;
+        });
+
+        // Fungsi bantuan untuk memuat gambar dari URL menjadi objek HTMLImageElement
+        function fetchImage(url) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.crossOrigin = "Anonymous"; // PENTING: Untuk menghindari error CORS dari GitHub Pages
+                img.onload = () => resolve(img);
+                img.onerror = () => reject(new Error(`Gagal memuat gambar: ${url}`));
+                img.src = url;
+            });
+        }
+
+        // Fungsi untuk mengambil gambar dari GitHub dan menggambarnya ke Canvas
+        async function loadImagesAndDraw() {
+            const id = document.getElementById('imageIndex').value;
+            
+            // Format nama file berdasarkan file yang kamu unggah
+            const visualUrl = `${GITHUB_BASE_URL}/visual/${id}.visual_gray.jpg`;
+            const thermalUrl = `${GITHUB_BASE_URL}/thermal/${id}.termal_gray.jpg`;
+
+            try {
+                // Muat kedua gambar secara paralel
+                const [imgVis, imgTerm] = await Promise.all([
+                    fetchImage(visualUrl),
+                    fetchImage(thermalUrl)
+                ]);
+
+                // Gambar ke Canvas
+                drawToCanvas('canvasVis', imgVis);
+                drawToCanvas('canvasTerm', imgTerm);
+                
+                // Jika ingin langsung diproses saat slider digeser, jalankan fungsinya di sini
+                // processPOC(); 
+
+            } catch (error) {
+                console.error(error);
+                alert("Gagal memuat gambar. Pastikan URL dan nama file di GitHub sudah benar.");
+            }
+        }
+
+        function drawToCanvas(canvasId, imgElement) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            
+            // Set ukuran canvas menyesuaikan gambar asli
+            canvas.width = imgElement.width;
+            canvas.height = imgElement.height;
+            
+            ctx.drawImage(imgElement, 0, 0, canvas.width, canvas.height);
+        }
+
+        // Tombol Proses
+        document.getElementById('processBtn').addEventListener('click', () => {
+            if (!cvReady) {
+                alert("OpenCV sedang dimuat, harap tunggu.");
+                return;
+            }
+            processPOC();
+        });
+
+        function processPOC() {
+            // Logika OpenCV.js untuk metode POC/BLPOC akan dimasukkan di sini
+            console.log("Mulai memproses POC/BLPOC dengan parameter:", {
+                bandwidth: document.getElementById('bandwidth').value,
+                windowing: document.getElementById('windowing').value
+            });
+            
+            // Contoh mengambil data dari canvas ke matrix OpenCV (Mat)
+            // let srcVis = cv.imread('canvasVis');
+            // let srcTerm = cv.imread('canvasTerm');
+            // ... (Algoritma FFT dan POC) ...
+            // cv.imshow('canvasResult', resultMat);
+            
+            alert("Tombol proses ditekan! (Logika algoritma POC bisa di-generate melalui AI Agent di fungsi ini)");
+        }
     </script>
 </body>
 </html>
