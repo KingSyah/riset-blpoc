@@ -271,7 +271,22 @@ const BLPoc = (() => {
   }
 
   /**
+   * JET colormap: value 0-1 → [r,g,b] 0-255
+   */
+  function jetColormap(v) {
+    v = Math.max(0, Math.min(1, v));
+    let r, g, b;
+    if (v < 0.125)      { r = 0; g = 0; b = 0.5 + v * 4; }
+    else if (v < 0.375) { r = 0; g = (v - 0.125) * 4; b = 1; }
+    else if (v < 0.625) { r = (v - 0.375) * 4; g = 1; b = 1 - (v - 0.375) * 4; }
+    else if (v < 0.875) { r = 1; g = 1 - (v - 0.625) * 4; b = 0; }
+    else                 { r = 1 - (v - 0.875) * 4; g = 0; b = 0; }
+    return [(r * 255) | 0, (g * 255) | 0, (b * 255) | 0];
+  }
+
+  /**
    * Render correlation map to canvas with JET colormap.
+   * Manual implementation — cv.applyColorMap not available in all builds.
    */
   function renderCorrelationMap(canvas, mapData, rows, cols) {
     // Find min/max
@@ -282,18 +297,24 @@ const BLPoc = (() => {
     }
     const range = maxV - minV || 1;
 
-    // Create grayscale mat
-    let disp = new cv.Mat(rows, cols, cv.CV_8UC1);
-    const dD = disp.data;
+    // Create RGBA image data
+    const ctx = canvas.getContext('2d');
+    canvas.width = cols;
+    canvas.height = rows;
+    const imgData = ctx.createImageData(cols, rows);
+    const pixels = imgData.data;
+
     for (let i = 0; i < rows * cols; i++) {
-      dD[i] = ((mapData[i] - minV) / range * 255) | 0;
+      const val = (mapData[i] - minV) / range;
+      const [r, g, b] = jetColormap(val);
+      const pIdx = i * 4;
+      pixels[pIdx]     = r;
+      pixels[pIdx + 1] = g;
+      pixels[pIdx + 2] = b;
+      pixels[pIdx + 3] = 255;
     }
 
-    // Apply JET colormap
-    let colour = new cv.Mat();
-    cv.applyColorMap(disp, colour, cv.COLORMAP_JET);
-    cv.imshow(canvas, colour);
-    disp.delete(); colour.delete();
+    ctx.putImageData(imgData, 0, 0);
   }
 
   // ── Public API ──────────────────────────────────────────
