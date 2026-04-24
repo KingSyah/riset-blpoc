@@ -206,3 +206,46 @@ OpenCV.js runs in WebAssembly — no garbage collection. Missing `.delete()` cau
 | Normalization | `./  (abs(...))` | Same, with ε=1e-10 |
 | Visualization | `mesh()` + `colormap jet` | 2D heatmap + Three.js 3D mesh |
 | Output | `saveas()` to PNG | `cv.imshow()` to canvas |
+
+---
+
+## 10. License & Copyright
+
+```
+© 2026 KingSyah. All rights reserved.
+```
+
+This project and its associated **research data** (face image datasets, MATLAB reference outputs, algorithm implementations) are the **intellectual property** of the author.
+
+**You may NOT:**
+- Use, copy, modify, or distribute the research data without explicit written permission
+- Use this work or its data for commercial purposes without authorization
+- Claim authorship or redistribute the dataset under your own name
+
+**You may:**
+- View and study the source code for educational purposes
+- Reference this work in academic publications with proper citation
+
+**To request permission**, contact via:
+- GitHub: [kingsyah](https://github.com/kingsyah)
+- Trakteer: [trakteer.id/KingSyah](https://trakteer.id/KingSyah)
+
+### Citation
+
+If you use this work in academic research, please cite:
+```
+Based on: "Cross-Spectral Face Matching Based on Phase Correlation"
+IEEE Access, 2019. https://ieeexplore.ieee.org/document/8875642/
+```
+
+### Third-Party Assets
+
+| Asset | Source | License |
+|---|---|---|
+| OpenCV.js 4.9.0 | CDN | Apache 2.0 |
+| Three.js r128 | CDN | MIT |
+| Inter font | Google Fonts | Open Font License |
+
+---
+
+*KingSyah · kingsyah.github.io*
