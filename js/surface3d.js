@@ -1,12 +1,35 @@
 /* ============================================================
    3D Surface Plot using Three.js
-   Renders correlation map as a 3D mesh like MATLAB surf()
+   Renders correlation map as 3D mesh like MATLAB surf()
    ============================================================ */
 
 const Surface3D = (() => {
   let scene, camera, renderer, mesh, container;
   let isInitialized = false;
   let animId = null;
+
+  // Orbit state (module-level so resetView can access)
+  const INITIAL_ROT_Y = Math.PI * 0.75;
+  const INITIAL_ROT_X = 0.55;
+  const CENTER = new THREE.Vector3(0.5, 0.1, 0.5);
+  let rotY = INITIAL_ROT_Y;
+  let rotX = INITIAL_ROT_X;
+  let orbitDist = 2.598; // sqrt(1.5²+1.5²+1.5²)
+
+  function updateCamera() {
+    if (!camera) return;
+    camera.position.x = CENTER.x + orbitDist * Math.sin(rotY) * Math.cos(rotX);
+    camera.position.y = CENTER.y + orbitDist * Math.sin(rotX);
+    camera.position.z = CENTER.z + orbitDist * Math.cos(rotY) * Math.cos(rotX);
+    camera.lookAt(CENTER);
+  }
+
+  function resetView() {
+    rotY = INITIAL_ROT_Y;
+    rotX = INITIAL_ROT_X;
+    orbitDist = 2.598;
+    updateCamera();
+  }
 
   /** JET colormap: value 0-1 → [r,g,b] 0-255 */
   function jet(v) {
@@ -37,8 +60,8 @@ const Surface3D = (() => {
     scene.background = new THREE.Color(0x0a0e17);
 
     camera = new THREE.PerspectiveCamera(50, w / h, 0.1, 1000);
-    camera.position.set(1.5, 1.5, 1.5);
-    camera.lookAt(0.5, 0.1, 0.5);
+    orbitDist = 2.598;
+    updateCamera();
 
     renderer = new THREE.WebGLRenderer({ canvas: container, antialias: true });
     renderer.setSize(w, h);
@@ -51,36 +74,24 @@ const Surface3D = (() => {
     dir.position.set(2, 3, 1);
     scene.add(dir);
 
-    // Axes helper (subtle)
+    // Axes helper
     const axesGroup = new THREE.Group();
 
-    // X axis (left to right)
     const xGeo = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(-0.5, -0.01, -0.5),
       new THREE.Vector3( 0.5, -0.01, -0.5)
     ]);
-    const xLine = new THREE.Line(xGeo, new THREE.LineBasicMaterial({ color: 0x666666 }));
-    axesGroup.add(xLine);
+    axesGroup.add(new THREE.Line(xGeo, new THREE.LineBasicMaterial({ color: 0x666666 })));
 
-    // Z axis (front to back)
     const zGeo = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(-0.5, -0.01, -0.5),
       new THREE.Vector3(-0.5, -0.01,  0.5)
     ]);
-    const zLine = new THREE.Line(zGeo, new THREE.LineBasicMaterial({ color: 0x666666 }));
-    axesGroup.add(zLine);
+    axesGroup.add(new THREE.Line(zGeo, new THREE.LineBasicMaterial({ color: 0x666666 })));
 
     scene.add(axesGroup);
 
-    // Orbit state
-    const INITIAL_ROT_Y = Math.PI * 0.75;
-    const INITIAL_ROT_X = 0.55;
-    let rotY = INITIAL_ROT_Y;
-    let rotX = INITIAL_ROT_X;
-    let orbitDist = camera.position.length();
-    const CENTER = new THREE.Vector3(0.5, 0.1, 0.5);
-
-    // Mouse drag
+    // ── Mouse drag ──
     let isDragging = false;
     let prevMouse = { x: 0, y: 0 };
 
@@ -94,9 +105,8 @@ const Surface3D = (() => {
       if (!isDragging) return;
       const dx = e.clientX - prevMouse.x;
       const dy = e.clientY - prevMouse.y;
-      rotY -= dx * 0.005;   // drag right → rotate clockwise
-      rotX += dy * 0.005;   // drag down → lower view (not inverted)
-      rotX = Math.max(0.1, Math.min(1.2, rotX));
+      rotY -= dx * 0.005;
+      rotX = Math.max(0.1, Math.min(1.2, rotX + dy * 0.005));
       prevMouse = { x: e.clientX, y: e.clientY };
       updateCamera();
     });
@@ -106,7 +116,7 @@ const Surface3D = (() => {
       container.style.cursor = 'grab';
     });
 
-    // Touch drag (mobile)
+    // ── Touch drag (mobile) ──
     let touchId = null;
     let prevTouch = { x: 0, y: 0 };
 
@@ -124,8 +134,7 @@ const Surface3D = (() => {
         const dx = t.clientX - prevTouch.x;
         const dy = t.clientY - prevTouch.y;
         rotY -= dx * 0.005;
-        rotX += dy * 0.005;
-        rotX = Math.max(0.1, Math.min(1.2, rotX));
+        rotX = Math.max(0.1, Math.min(1.2, rotX + dy * 0.005));
         prevTouch = { x: t.clientX, y: t.clientY };
         updateCamera();
       }
@@ -137,37 +146,21 @@ const Surface3D = (() => {
       }
     }, { passive: true });
 
-    // Scroll zoom
+    // ── Scroll zoom ──
     container.addEventListener('wheel', (e) => {
       e.preventDefault();
-      orbitDist *= (e.deltaY > 0 ? 1.08 : 0.92);
-      orbitDist = Math.max(0.5, Math.min(5, orbitDist));
+      orbitDist = Math.max(0.5, Math.min(5, orbitDist * (e.deltaY > 0 ? 1.08 : 0.92)));
       updateCamera();
     }, { passive: false });
-
-    function updateCamera() {
-      camera.position.x = CENTER.x + orbitDist * Math.sin(rotY) * Math.cos(rotX);
-      camera.position.y = CENTER.y + orbitDist * Math.sin(rotX);
-      camera.position.z = CENTER.z + orbitDist * Math.cos(rotY) * Math.cos(rotX);
-      camera.lookAt(CENTER);
-    }
-
-    // Reset to initial view
-    function resetView() {
-      rotY = INITIAL_ROT_Y;
-      rotX = INITIAL_ROT_X;
-      orbitDist = Math.sqrt(1.5*1.5 + 1.5*1.5 + 1.5*1.5);
-      updateCamera();
-    }
 
     isInitialized = true;
   }
 
   /**
-   * Render a correlation map as a 3D surface.
-   * @param {Float32Array} data  — flat array, rows × cols
-   * @param {number} rows        — grid rows
-   * @param {number} cols        — grid cols (optional, defaults to rows)
+   * Render correlation map as 3D surface.
+   * @param {Float32Array} data — flat array, rows × cols
+   * @param {number} rows
+   * @param {number} cols (optional, defaults to rows)
    */
   function render(data, rows, cols) {
     if (!isInitialized) return;
@@ -194,7 +187,7 @@ const Surface3D = (() => {
     }
     const range = maxV - minV || 1;
 
-    // Create geometry — horizontal plane, centered at origin
+    // Create geometry — horizontal, centered at origin
     const geometry = new THREE.PlaneGeometry(1, 1, gCols - 1, gRows - 1);
     const positions = geometry.attributes.position.array;
     const colors = new Float32Array(positions.length);
@@ -205,12 +198,10 @@ const Surface3D = (() => {
         const srcIdx = (j * stepR) * cols + (i * stepC);
         const val = (data[srcIdx] - minV) / range;
 
-        // Position: x = column, y = height, z = row (centered at origin)
-        positions[idx * 3]     = (i / gCols) - 0.5;    // x: [-0.5, 0.5]
-        positions[idx * 3 + 1] = val * 0.4;             // y: height
-        positions[idx * 3 + 2] = (j / gRows) - 0.5;    // z: [-0.5, 0.5]
+        positions[idx * 3]     = (i / gCols) - 0.5;
+        positions[idx * 3 + 1] = val * 0.4;
+        positions[idx * 3 + 2] = (j / gRows) - 0.5;
 
-        // Color (JET)
         const [r, g, b] = jet(val);
         colors[idx * 3]     = r / 255;
         colors[idx * 3 + 1] = g / 255;
@@ -229,7 +220,7 @@ const Surface3D = (() => {
     });
 
     mesh = new THREE.Mesh(geometry, material);
-    mesh.position.set(0.5, 0, 0.5);  // center surface in view
+    mesh.position.set(0.5, 0, 0.5);
     scene.add(mesh);
 
     renderLoop();
