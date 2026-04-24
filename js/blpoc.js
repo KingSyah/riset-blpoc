@@ -13,11 +13,11 @@ const BLPoc = (() => {
   const BASE_URL = 'https://kingsyah.github.io/riset-blpoc/dataset/';
   const MAX_ID   = 100;
 
-  // DFT flag fallbacks (some OpenCV.js builds miss these)
-  const DFT_INVERSE        = (typeof cv.DFT_INVERSE !== 'undefined')        ? cv.DFT_INVERSE        : 1;
-  const DFT_REAL_OUTPUT    = (typeof cv.DFT_REAL_OUTPUT !== 'undefined')    ? cv.DFT_REAL_OUTPUT    : 4;
-  const DFT_SCALE          = (typeof cv.DFT_SCALE !== 'undefined')          ? cv.DFT_SCALE          : 2;
-  const DFT_COMPLEX_OUTPUT = (typeof cv.DFT_COMPLEX_OUTPUT !== 'undefined') ? cv.DFT_COMPLEX_OUTPUT : 0;
+  // DFT flags (standard OpenCV constants — hardcoded to avoid cv dependency at load time)
+  const DFT_INVERSE        = 1;
+  const DFT_REAL_OUTPUT    = 4;
+  const DFT_SCALE          = 2;
+  const DFT_COMPLEX_OUTPUT = 0;
 
   // ── Helpers ──────────────────────────────────────────────
   function padId(n) { return String(n); }
