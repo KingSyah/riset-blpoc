@@ -5,10 +5,54 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Cross-Spectral Face Matching — POC/BLPOC Living Paper</title>
 
-<!-- Favicon (SVG inline data URI) -->
+<!-- Favicon -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233b82f6'/%3E%3Cstop offset='1' stop-color='%238b5cf6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='%230a0e17'/%3E%3Ccircle cx='22' cy='28' r='10' fill='none' stroke='%2310b981' stroke-width='2.5'/%3E%3Ccircle cx='42' cy='28' r='10' fill='none' stroke='%23ef4444' stroke-width='2.5'/%3E%3Cpath d='M22 38 L32 48 L42 38' fill='none' stroke='url(%23g)' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='32' cy='48' r='3' fill='url(%23g)'/%3E%3C/svg%3E">
 
+<!-- Three.js for 3D surface plot -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
 <link rel="stylesheet" href="css/style.css">
+
+<style>
+/* ── 3D View additional styles ──────────────────────── */
+.view-toggle {
+  display: flex;
+  gap: 4px;
+  background: var(--surface2);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.view-toggle button {
+  padding: 4px 12px;
+  font-size: 0.7rem;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text2);
+  border: none;
+}
+
+.view-toggle button.active {
+  background: var(--accent);
+  color: white;
+}
+
+#canvas3D {
+  width: 100%;
+  height: 300px;
+  border-radius: 4px;
+  display: none;
+}
+
+.canvas-wrap canvas.visible,
+.canvas-wrap #canvas3D.visible {
+  display: block !important;
+}
+
+.canvas-wrap canvas.hidden {
+  display: none !important;
+}
+</style>
 </head>
 <body>
 
@@ -23,7 +67,7 @@
   <header>
     <h1>Cross-Spectral Face Matching — POC / BLPOC</h1>
     <p>Interactive implementation of Phase-Only Correlation and Band-Limited Phase-Only Correlation for visible–thermal face matching, based on IEEE paper "Cross-Spectral Face Matching Based on Phase Correlation."</p>
-    <span class="badge">OpenCV.js · FFT · Complex Spectra</span>
+    <span class="badge">OpenCV.js · FFT · Three.js · Complex Spectra</span>
   </header>
 
   <!-- Controls -->
@@ -39,20 +83,20 @@
     </div>
 
     <div class="control-card">
-      <label>Bandwidth Limit (BLPOC Ratio)</label>
-      <div class="value" id="bwVal">1.00</div>
-      <input type="range" id="bwSlider" min="10" max="100" value="100">
+      <label>Bandwidth (Frequency Components)</label>
+      <div class="value" id="bwVal">20</div>
+      <input type="range" id="bwSlider" min="5" max="100" value="20">
       <div style="font-size:0.7rem;color:var(--text2);margin-top:6px;">
-        1.0 = full POC &nbsp;|&nbsp; &lt;1.0 = band-limited (BLPOC)
+        Number of low-frequency components kept (e.g. 20 = 20×20 FFT crop)
       </div>
     </div>
 
     <div class="control-card">
-      <label>Windowing Function (Alpha)</label>
-      <div class="value" id="winVal">0.50</div>
-      <input type="range" id="winSlider" min="0" max="100" value="50">
+      <label>LoG Pre-filter (Laplacian of Gaussian)</label>
+      <div class="value" id="logVal">OFF</div>
+      <input type="range" id="logSlider" min="0" max="100" value="0">
       <div style="font-size:0.7rem;color:var(--text2);margin-top:6px;">
-        0 = Rectangular (none) &nbsp;|&nbsp; 1 = Hanning
+        0 = OFF &nbsp;|&nbsp; 1–100 = σ (sigma)
       </div>
     </div>
 
@@ -84,7 +128,7 @@
     </div>
     <div class="status-item">
       <div class="label">Method</div>
-      <div class="val" id="methodLabel" style="font-size:0.85rem;">POC</div>
+      <div class="val" id="methodLabel" style="font-size:0.85rem;">BLPOC(20)</div>
     </div>
   </div>
 
@@ -113,10 +157,14 @@
     <div class="canvas-card">
       <div class="canvas-header">
         <h3>Correlation Map</h3>
-        <span class="tag tag-result">Result</span>
+        <div class="view-toggle">
+          <button class="active" id="btnView2D">2D</button>
+          <button id="btnView3D">3D</button>
+        </div>
       </div>
       <div class="canvas-wrap">
-        <canvas id="canvasResult" width="256" height="256"></canvas>
+        <canvas id="canvasResult" width="256" height="256" class="visible"></canvas>
+        <canvas id="canvas3D"></canvas>
       </div>
       <div class="heatmap-legend">
         <span>Low</span>
@@ -159,6 +207,7 @@
 
 <!-- Scripts -->
 <script src="js/blpoc.js"></script>
+<script src="js/surface3d.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
