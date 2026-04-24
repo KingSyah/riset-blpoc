@@ -54,18 +54,18 @@ const Surface3D = (() => {
     // Axes helper (subtle)
     const axesGroup = new THREE.Group();
 
-    // X axis
+    // X axis (left to right)
     const xGeo = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(0, -0.01, 0),
-      new THREE.Vector3(1, -0.01, 0)
+      new THREE.Vector3(-0.5, -0.01, -0.5),
+      new THREE.Vector3( 0.5, -0.01, -0.5)
     ]);
     const xLine = new THREE.Line(xGeo, new THREE.LineBasicMaterial({ color: 0x666666 }));
     axesGroup.add(xLine);
 
-    // Z axis
+    // Z axis (front to back)
     const zGeo = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(0, -0.01, 0),
-      new THREE.Vector3(0, -0.01, 1)
+      new THREE.Vector3(-0.5, -0.01, -0.5),
+      new THREE.Vector3(-0.5, -0.01,  0.5)
     ]);
     const zLine = new THREE.Line(zGeo, new THREE.LineBasicMaterial({ color: 0x666666 }));
     axesGroup.add(zLine);
@@ -144,7 +144,7 @@ const Surface3D = (() => {
     }
     const range = maxV - minV || 1;
 
-    // Create geometry
+    // Create geometry — horizontal plane, centered at origin
     const geometry = new THREE.PlaneGeometry(1, 1, gCols - 1, gRows - 1);
     const positions = geometry.attributes.position.array;
     const colors = new Float32Array(positions.length);
@@ -155,10 +155,10 @@ const Surface3D = (() => {
         const srcIdx = (j * stepR) * cols + (i * stepC);
         const val = (data[srcIdx] - minV) / range;
 
-        // Position: x = i, y = height, z = j
-        positions[idx * 3]     = i / gCols;          // x
-        positions[idx * 3 + 1] = val * 0.4;          // y (height)
-        positions[idx * 3 + 2] = j / gRows;          // z
+        // Position: x = column, y = height, z = row (centered at origin)
+        positions[idx * 3]     = (i / gCols) - 0.5;    // x: [-0.5, 0.5]
+        positions[idx * 3 + 1] = val * 0.4;             // y: height
+        positions[idx * 3 + 2] = (j / gRows) - 0.5;    // z: [-0.5, 0.5]
 
         // Color (JET)
         const [r, g, b] = jet(val);
@@ -179,7 +179,7 @@ const Surface3D = (() => {
     });
 
     mesh = new THREE.Mesh(geometry, material);
-    mesh.rotation.x = -Math.PI / 2;  // lay flat
+    mesh.position.set(0.5, 0, 0.5);  // center surface in view
     scene.add(mesh);
 
     renderLoop();
