@@ -195,9 +195,9 @@ const BLPoc = (() => {
     // 7 ─ Band-limit (BLPOC)
     applyBandLimitMask(norm, bandwidthLimit);
 
-    // 8 ─ Inverse DFT
+    // 8 ─ Inverse DFT  (cv.idft unavailable — use cv.dft with DFT_INVERSE flag)
     let spatial = new cv.Mat();
-    cv.idft(norm, spatial, cv.DFT_REAL_OUTPUT | cv.DFT_SCALE);
+    cv.dft(norm, spatial, cv.DFT_INVERSE | cv.DFT_REAL_OUTPUT | cv.DFT_SCALE);
     norm.delete();
 
     // 9 ─ FFT shift (centre the peak)
