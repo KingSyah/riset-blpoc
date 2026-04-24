@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Visualizer Jurnal: Cross-Spectral Face Matching</title>
+    <script async src="https://docs.opencv.org/4.5.4/opencv.js" type="text/javascript"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-white p-8">
+    <h1 class="text-2xl font-bold mb-4">POC/BLPOC Face Matching Visualizer</h1>
+    
+    <div class="grid grid-cols-2 gap-8">
+        <div class="bg-slate-800 p-6 rounded-lg">
+            <h2 class="text-xl mb-4 text-blue-400">Parameter Jurnal</h2>
+            
+            <label class="block mb-2">Pilih Pasangan Citra (1-100):</label>
+            <input type="range" id="imageIndex" min="1" max="100" value="1" class="w-full mb-4">
+            
+            <label class="block mb-2 text-sm">Bandwidth Limit (BLPOC): <span id="bwVal">1.0</span></label>
+            <input type="range" id="bandwidth" min="0.1" max="1.0" step="0.1" value="1.0" class="w-full mb-4">
+            
+            <label class="block mb-2 text-sm">Windowing (Alpha): <span id="winVal">0.5</span></label>
+            <input type="range" id="windowing" min="0" max="1" step="0.1" value="0.5" class="w-full">
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <p class="text-center text-xs mb-1">Visual (Visible)</p>
+                <canvas id="canvasVis" class="w-full border border-slate-700"></canvas>
+            </div>
+            <div>
+                <p class="text-center text-xs mb-1">Thermal (Infrared)</p>
+                <canvas id="canvasTerm" class="w-full border border-slate-700"></canvas>
+            </div>
+            <div class="col-span-2">
+                <p class="text-center text-xs mb-1">Phase Correlation Map (The Peak)</p>
+                <canvas id="canvasResult" class="w-full h-48 bg-black"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Logika OpenCV.js akan ditaruh di sini
+        // 1. Fetch gambar dari Cloudflare R2 berdasarkan slider 'imageIndex'
+        // 2. Jalankan cv.dft() untuk kedua gambar
+        // 3. Terapkan Bandwidth limit dari slider 'bandwidth'
+        // 4. Hitung Phase Correlation
+        // 5. Gambar hasilnya di canvasResult
+    </script>
+</body>
+</html>
