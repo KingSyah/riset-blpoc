@@ -1,16 +1,23 @@
 /* ============================================================
    Cross-Spectral Face Matching — POC/BLPOC Living Paper
    Core Processing Engine (OpenCV.js)
+
+   SAFETY: All math operations use Float32Array pixel loops
+   instead of OpenCV.js matrix ops to avoid BindingErrors.
+   Only cv.imread, cv.cvtColor, cv.resize, cv.dft, cv.split,
+   cv.merge, cv.imshow are used — all verified available.
    ============================================================ */
 
 const BLPoc = (() => {
   const BASE_URL = 'https://kingsyah.github.io/riset-blpoc/dataset/';
   const MAX_ID   = 100;
   const FFT_SIZE = 256;
+  const N        = FFT_SIZE * FFT_SIZE;   // total pixels
 
   // ── Helpers ──────────────────────────────────────────────
-  function padId(n) { return String(n); }   // dataset uses bare integers: 1, 2, … 100
+  function padId(n) { return String(n); }
 
+  /** 2D Hanning window, blended with rectangular by alpha */
   function generateWindow2D(size, alpha) {
     const win = new Float32Array(size * size);
     for (let y = 0; y < size; y++) {
@@ -23,71 +30,92 @@ const BLPoc = (() => {
     return win;
   }
 
-  /** Quadrant swap for 2-channel complex matrix */
-  function fftShift2D(mat) {
-    const halfR = Math.floor(mat.rows / 2);
-    const halfC = Math.floor(mat.cols / 2);
-    const q0 = mat.roi(new cv.Rect(0, 0, halfC, halfR));
-    const q3 = mat.roi(new cv.Rect(halfC, halfR, mat.cols - halfC, mat.rows - halfR));
-    const q1 = mat.roi(new cv.Rect(halfC, 0, mat.cols - halfC, halfR));
-    const q2 = mat.roi(new cv.Rect(0, halfR, halfC, mat.rows - halfR));
-    let t;
-    t = new cv.Mat(); q0.copyTo(t); q3.copyTo(q0); t.copyTo(q3); t.delete();
-    t = new cv.Mat(); q1.copyTo(t); q2.copyTo(q1); t.copyTo(q2); t.delete();
-    q0.delete(); q1.delete(); q2.delete(); q3.delete();
+  /**
+   * FFT shift via manual pixel copy (safe for any OpenCV.js build).
+   * Works on a single-channel CV_32FC1 mat.
+   */
+  function fftShift_real(mat) {
+    const rows = mat.rows, cols = mat.cols;
+    const hR = rows >> 1, hC = cols >> 1;
+    const src = mat.data32F;
+    const tmp = new Float32Array(rows * cols);
+
+    // Copy to tmp with quadrants swapped
+    for (let r = 0; r < rows; r++) {
+      const srcR = (r < hR) ? r + hR : r - hR;
+      for (let c = 0; c < cols; c++) {
+        const srcC = (c < hC) ? c + hC : c - hC;
+        tmp[r * cols + c] = src[srcR * cols + srcC];
+      }
+    }
+    src.set(tmp);
   }
 
-  /** Quadrant swap for single-channel real matrix */
-  function fftShift2D_real(mat) {
-    const halfR = Math.floor(mat.rows / 2);
-    const halfC = Math.floor(mat.cols / 2);
-    const q0 = mat.roi(new cv.Rect(0, 0, halfC, halfR));
-    const q3 = mat.roi(new cv.Rect(halfC, halfR, mat.cols - halfC, mat.rows - halfR));
-    const q1 = mat.roi(new cv.Rect(halfC, 0, mat.cols - halfC, halfR));
-    const q2 = mat.roi(new cv.Rect(0, halfR, halfC, mat.rows - halfR));
-    let t;
-    t = new cv.Mat(); q0.copyTo(t); q3.copyTo(q0); t.copyTo(q3); t.delete();
-    t = new cv.Mat(); q1.copyTo(t); q2.copyTo(q1); t.copyTo(q2); t.delete();
-    q0.delete(); q1.delete(); q2.delete(); q3.delete();
+  /**
+   * FFT shift for 2-channel complex mat (data32F layout: re,im,re,im,…).
+   */
+  function fftShift_complex(mat) {
+    const rows = mat.rows, cols = mat.cols;
+    const hR = rows >> 1, hC = cols >> 1;
+    const src = mat.data32F;
+    const tmp = new Float32Array(rows * cols * 2);
+
+    for (let r = 0; r < rows; r++) {
+      const srcR = (r < hR) ? r + hR : r - hR;
+      for (let c = 0; c < cols; c++) {
+        const srcC = (c < hC) ? c + hC : c - hC;
+        const di = (r * cols + c) * 2;
+        const si = (srcR * cols + srcC) * 2;
+        tmp[di]     = src[si];
+        tmp[di + 1] = src[si + 1];
+      }
+    }
+    src.set(tmp);
   }
 
-  /** Band-limit mask on normalised cross-power spectrum */
+  /**
+   * Band-limit mask: zero out frequencies outside rectangular band.
+   * DC is assumed at (0,0) — we fftshift, mask, ifftshift.
+   */
   function applyBandLimitMask(complexMat, bwRatio) {
     if (bwRatio >= 1.0) return;
-    fftShift2D(complexMat);
+
+    fftShift_complex(complexMat);
+
     const rows = complexMat.rows, cols = complexMat.cols;
-    const cx = Math.floor(cols / 2), cy = Math.floor(rows / 2);
+    const cx = cols >> 1, cy = rows >> 1;
     const halfW = Math.floor(cx * bwRatio);
     const halfH = Math.floor(cy * bwRatio);
     const data = complexMat.data32F;
+
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
         if (Math.abs(r - cy) > halfH || Math.abs(c - cx) > halfW) {
           const idx = (r * cols + c) * 2;
-          data[idx] = 0;
+          data[idx]     = 0;
           data[idx + 1] = 0;
         }
       }
     }
-    fftShift2D(complexMat);
+
+    fftShift_complex(complexMat);
   }
 
   // ── URL builders ─────────────────────────────────────────
-  function visualUrl(id) { return `${BASE_URL}visual/${id}.visual_gray.jpg`; }
+  function visualUrl(id)  { return `${BASE_URL}visual/${id}.visual_gray.jpg`; }
   function thermalUrl(id) { return `${BASE_URL}thermal/${id}.termal_gray.jpg`; }
 
-  // ── Image loader (returns Promise<HTMLImageElement>) ─────
+  // ── Image loader ─────────────────────────────────────────
   function loadImage(url) {
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.crossOrigin = 'Anonymous';
-      img.onload = () => resolve(img);
+      img.onload  = () => resolve(img);
       img.onerror = () => reject(new Error(`Load failed: ${url}`));
       img.src = url;
     });
   }
 
-  /** Draw image fitted inside a 256×256 canvas */
   function drawFit(canvas, ctx, img) {
     const S = FFT_SIZE;
     canvas.width = S; canvas.height = S;
@@ -101,15 +129,18 @@ const BLPoc = (() => {
   /**
    * @param {HTMLCanvasElement} canvasVis
    * @param {HTMLCanvasElement} canvasThm
-   * @param {HTMLCanvasElement} canvasOut   ← target for correlation map
+   * @param {HTMLCanvasElement} canvasOut
    * @param {number} bandwidthLimit  0.1 – 1.0
    * @param {number} windowAlpha     0 – 1
+   * @param {function} [debugLog]    optional logging callback
    * @returns {{ peakValue, peakX, peakY, timeMs }}
    */
-  function process(canvasVis, canvasThm, canvasOut, bandwidthLimit, windowAlpha) {
-    const t0 = performance.now();
+  function process(canvasVis, canvasThm, canvasOut, bandwidthLimit, windowAlpha, debugLog) {
+    const log = debugLog || (() => {});
+    const t0  = performance.now();
 
-    // 1 ─ Read & greyscale
+    // ─── 1. Read & greyscale ──────────────────────────────
+    log('step 1: read & greyscale');
     let srcV = cv.imread(canvasVis);
     let srcT = cv.imread(canvasThm);
     let grayV = new cv.Mat(), grayT = new cv.Mat();
@@ -117,7 +148,8 @@ const BLPoc = (() => {
     cv.cvtColor(srcT, grayT, cv.COLOR_RGBA2GRAY);
     srcV.delete(); srcT.delete();
 
-    // 2 ─ Resize to FFT_SIZE² & float32
+    // ─── 2. Resize & float32 ──────────────────────────────
+    log('step 2: resize & float32');
     let resV = new cv.Mat(), resT = new cv.Mat();
     const sz = new cv.Size(FFT_SIZE, FFT_SIZE);
     cv.resize(grayV, resV, sz, 0, 0, cv.INTER_AREA);
@@ -129,93 +161,111 @@ const BLPoc = (() => {
     resT.convertTo(fT, cv.CV_32FC1);
     resV.delete(); resT.delete();
 
-    // 3 ─ Windowing
+    // ─── 3. Windowing ─────────────────────────────────────
+    log('step 3: windowing (alpha=' + windowAlpha.toFixed(2) + ')');
     if (windowAlpha > 0.01) {
       const winArr = generateWindow2D(FFT_SIZE, windowAlpha);
-      const winMat = new cv.Mat(FFT_SIZE, FFT_SIZE, cv.CV_32FC1);
-      winMat.data32F.set(winArr);
-      cv.multiply(fV, winMat, fV);
-      cv.multiply(fT, winMat, fT);
-      winMat.delete();
+      const vD = fV.data32F, tD = fT.data32F;
+      for (let i = 0; i < N; i++) {
+        vD[i] *= winArr[i];
+        tD[i] *= winArr[i];
+      }
     }
 
-    // 4 ─ DFT
+    // ─── 4. DFT → complex output (2-channel) ──────────────
+    log('step 4: DFT');
     let cV = new cv.Mat(), cT = new cv.Mat();
     cv.dft(fV, cV, cv.DFT_COMPLEX_OUTPUT);
     cv.dft(fT, cT, cv.DFT_COMPLEX_OUTPUT);
     fV.delete(); fT.delete();
 
-    // 5 ─ Cross-Power Spectrum  F · G*  (manual — mulSpectrums unavailable in OpenCV.js)
-    //     F·G* = (ReF·ReG + ImF·ImG) + j(ImF·ReG − ReF·ImG)
-    let chV = new cv.MatVector(), chT = new cv.MatVector();
-    cv.split(cV, chV); cv.split(cT, chT);
-    let reV = chV.get(0), imV = chV.get(1);
-    let reT = chT.get(0), imT = chT.get(1);
-    chV.delete(); chT.delete(); cV.delete(); cT.delete();
+    // ─── 5. Cross-Power Spectrum  F · G* ──────────────────
+    log('step 5: cross-power spectrum');
+    // Manual pixel loop — avoids mulSpectrums
+    const dV = cV.data32F, dT = cT.data32F;
+    const crossRe = new Float32Array(N);
+    const crossIm = new Float32Array(N);
 
-    let tA = new cv.Mat(), tB = new cv.Mat();
-    let crossRe = new cv.Mat(), crossIm = new cv.Mat();
+    for (let i = 0; i < N; i++) {
+      const idx = i * 2;
+      const aRe = dV[idx], aIm = dV[idx + 1];
+      const bRe = dT[idx], bIm = dT[idx + 1];
+      // F · G* = (aRe + j·aIm)(bRe - j·bIm)
+      crossRe[i] = aRe * bRe + aIm * bIm;
+      crossIm[i] = aIm * bRe - aRe * bIm;
+    }
+    cV.delete(); cT.delete();
 
-    // crossRe = reV*reT + imV*imT
-    cv.multiply(reV, reT, tA);
-    cv.multiply(imV, imT, tB);
-    cv.add(tA, tB, crossRe);
+    // ─── 6. Phase-only normalisation ──────────────────────
+    log('step 6: phase-only normalisation');
+    const nReArr = new Float32Array(N);
+    const nImArr = new Float32Array(N);
+    for (let i = 0; i < N; i++) {
+      const mag = Math.sqrt(crossRe[i] * crossRe[i] + crossIm[i] * crossIm[i]) + 1e-5;
+      nReArr[i] = crossRe[i] / mag;
+      nImArr[i] = crossIm[i] / mag;
+    }
 
-    // crossIm = imV*reT - reV*imT
-    cv.multiply(imV, reT, tA);
-    cv.multiply(reV, imT, tB);
-    cv.subtract(tA, tB, crossIm);
+    // Pack back into 2-channel cv.Mat
+    let norm = new cv.Mat(FFT_SIZE, FFT_SIZE, cv.CV_32FC2);
+    const normD = norm.data32F;
+    for (let i = 0; i < N; i++) {
+      const idx = i * 2;
+      normD[idx]     = nReArr[i];
+      normD[idx + 1] = nImArr[i];
+    }
 
-    tA.delete(); tB.delete(); reV.delete(); imV.delete(); reT.delete(); imT.delete();
-
-    // 6 ─ Phase-only normalisation: divide by magnitude
-    //     mag = sqrt(re² + im²)
-    let re2 = new cv.Mat(), im2 = new cv.Mat(), sum2 = new cv.Mat(), mag = new cv.Mat();
-    cv.multiply(crossRe, crossRe, re2);
-    cv.multiply(crossIm, crossIm, im2);
-    cv.add(re2, im2, sum2);
-    cv.sqrt(sum2, mag);
-    re2.delete(); im2.delete(); sum2.delete();
-
-    // Add epsilon to avoid /0
-    let eps = new cv.Mat(FFT_SIZE, FFT_SIZE, cv.CV_32FC1, new cv.Scalar(1e-5));
-    cv.add(mag, eps, mag); eps.delete();
-
-    let nRe = new cv.Mat(), nIm = new cv.Mat();
-    cv.divide(crossRe, mag, nRe);
-    cv.divide(crossIm, mag, nIm);
-    crossRe.delete(); crossIm.delete(); mag.delete();
-
-    let norm = new cv.Mat();
-    let nch = new cv.MatVector();
-    nch.push_back(nRe); nch.push_back(nIm);
-    cv.merge(nch, norm);
-    nch.delete(); nRe.delete(); nIm.delete();
-
-    // 7 ─ Band-limit (BLPOC)
+    // ─── 7. Band-limit (BLPOC) ────────────────────────────
+    log('step 7: band-limit (bw=' + bandwidthLimit.toFixed(2) + ')');
     applyBandLimitMask(norm, bandwidthLimit);
 
-    // 8 ─ Inverse DFT  (cv.idft unavailable — use cv.dft with DFT_INVERSE flag)
+    // ─── 8. Inverse DFT ───────────────────────────────────
+    log('step 8: inverse DFT');
     let spatial = new cv.Mat();
     cv.dft(norm, spatial, cv.DFT_INVERSE | cv.DFT_REAL_OUTPUT | cv.DFT_SCALE);
     norm.delete();
 
-    // 9 ─ FFT shift (centre the peak)
-    fftShift2D_real(spatial);
+    // ─── 9. FFT shift (centre peak) ───────────────────────
+    log('step 9: fft shift');
+    fftShift_real(spatial);
 
-    // 10 ─ Find peak
-    let minV = 0, maxV = 0, minL = new cv.Point(), maxL = new cv.Point();
-    cv.minMaxLoc(spatial, minV, maxV, minL, maxL);
+    // ─── 10. Find peak via manual pixel scan ──────────────
+    log('step 10: find peak');
+    const sData = spatial.data32F;
+    let maxVal = -Infinity, peakX = 0, peakY = 0;
+    for (let r = 0; r < FFT_SIZE; r++) {
+      for (let c = 0; c < FFT_SIZE; c++) {
+        const v = sData[r * FFT_SIZE + c];
+        if (v > maxVal) { maxVal = v; peakX = c; peakY = r; }
+      }
+    }
 
-    // 11 ─ Normalise & colourmap for display
-    let disp = new cv.Mat();
-    cv.normalize(spatial, disp, 0, 255, cv.NORM_MINMAX, cv.CV_8UC1);
+    // ─── 11. Normalise & colourmap for display ────────────
+    log('step 11: render');
+    // Manual min-max normalise to 0-255
+    let minV = Infinity;
+    for (let i = 0; i < N; i++) { if (sData[i] < minV) minV = sData[i]; }
+    const range = maxVal - minV || 1;
+
+    let disp = new cv.Mat(FFT_SIZE, FFT_SIZE, cv.CV_8UC1);
+    const dD = disp.data;
+    for (let i = 0; i < N; i++) {
+      dD[i] = ((sData[i] - minV) / range * 255) | 0;
+    }
+
     let colour = new cv.Mat();
     cv.applyColorMap(disp, colour, cv.COLORMAP_JET);
     cv.imshow(canvasOut, colour);
     disp.delete(); colour.delete(); spatial.delete();
 
-    return { peakValue: maxV, peakX: maxL.x, peakY: maxL.y, timeMs: performance.now() - t0 };
+    log('done in ' + (performance.now() - t0).toFixed(1) + 'ms');
+
+    return {
+      peakValue: maxVal,
+      peakX: peakX,
+      peakY: peakY,
+      timeMs: performance.now() - t0
+    };
   }
 
   // ── Public API ──────────────────────────────────────────

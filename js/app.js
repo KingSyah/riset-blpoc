@@ -116,13 +116,14 @@ document.getElementById('btnProcess').addEventListener('click', () => {
   log(`Processing pair #${pairSlider.value} | BW=${bw.toFixed(2)} | α=${win.toFixed(2)}`, 'info');
 
   try {
-    const r = BLPoc.process(canvasVisual, canvasThermal, canvasResult, bw, win);
+    const r = BLPoc.process(canvasVisual, canvasThermal, canvasResult, bw, win, (msg) => log('[POC] ' + msg, 'info'));
     document.getElementById('peakVal').textContent  = r.peakValue.toFixed(6);
     document.getElementById('peakLoc').textContent  = `(${r.peakX}, ${r.peakY})`;
     document.getElementById('procTime').textContent = `${r.timeMs.toFixed(1)} ms`;
     log(`✓ Peak=${r.peakValue.toFixed(6)} at (${r.peakX}, ${r.peakY}) in ${r.timeMs.toFixed(1)}ms`, 'ok');
   } catch (err) {
-    log(`Error: ${err.message}`, 'error');
+    log(`Error: ${err.message || err}`, 'error');
+    if (err.stack) log(err.stack.split('\n').slice(0,3).join(' | '), 'error');
     console.error(err);
   }
 });
@@ -159,7 +160,7 @@ document.getElementById('btnBatch').addEventListener('click', async () => {
       row.innerHTML = `<td>${i}</td><td>${r.peakValue.toFixed(6)}</td><td>(${r.peakX}, ${r.peakY})</td><td>${method}</td><td>${r.timeMs.toFixed(1)}</td>`;
       tbody.appendChild(row);
     } catch (err) {
-      log(`#${i} error: ${err.message}`, 'error');
+      log(`#${i} error: ${err.message || err}`, 'error');
     }
     await new Promise(r => setTimeout(r, 30));
   }
