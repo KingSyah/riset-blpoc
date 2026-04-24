@@ -307,7 +307,7 @@ const BLPoc = (() => {
     const dispH = rows * scale;
 
     // Create RGBA image data at the scaled size
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     canvas.width = dispW;
     canvas.height = dispH;
     const imgData = ctx.createImageData(dispW, dispH);

@@ -8,8 +8,8 @@ const canvasVisual  = document.getElementById('canvasVisual');
 const canvasThermal = document.getElementById('canvasThermal');
 const canvasResult  = document.getElementById('canvasResult');
 const canvas3D      = document.getElementById('canvas3D');
-const ctxV = canvasVisual.getContext('2d');
-const ctxT = canvasThermal.getContext('2d');
+const ctxV = canvasVisual.getContext('2d', { willReadFrequently: true });
+const ctxT = canvasThermal.getContext('2d', { willReadFrequently: true });
 
 const pairSlider = document.getElementById('pairSlider');
 const bwSlider   = document.getElementById('bwSlider');
@@ -69,7 +69,7 @@ async function loadPair(id) {
     BLPoc.drawFit(canvasVisual, ctxV, visualImg);
     BLPoc.drawFit(canvasThermal, ctxT, thermalImg);
 
-    const ctxR = canvasResult.getContext('2d');
+    const ctxR = canvasResult.getContext('2d', { willReadFrequently: true });
     ctxR.fillStyle = '#000'; ctxR.fillRect(0, 0, 256, 256);
     ctxR.fillStyle = '#555'; ctxR.font = '14px sans-serif'; ctxR.textAlign = 'center';
     ctxR.fillText('Click "Process" to compute', 128, 128);
