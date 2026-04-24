@@ -209,5 +209,26 @@
 <script src="js/blpoc.js"></script>
 <script src="js/surface3d.js"></script>
 <script src="js/app.js"></script>
+
+<!-- Trakteer Floating Button -->
+<a href="https://trakteer.id/KingSyah/tip?open=true" target="_blank" rel="noopener noreferrer"
+   class="kopi-float" aria-label="Traktir Kopi">
+  <div class="kopi-ring kopi-r1"></div>
+  <div class="kopi-ring kopi-r2"></div>
+  <img src="https://edge-cdn.trakteer.id/images/embed/trbtn-icon.png?v=14-05-2025" alt="Kopi">
+</a>
+
+<!-- Copyright Footer -->
+<div class="footer">
+  <div class="footer-inner">
+    <span class="footer-icon">🔬</span>
+    <span class="footer-text">© <span id="copyright-year"></span> KingSyah — Research Use Only</span>
+    <span class="footer-icon">🔬</span>
+  </div>
+</div>
+
+<script>
+  document.getElementById('copyright-year').textContent = new Date().getFullYear();
+</script>
 </body>
 </html>

@@ -386,3 +386,134 @@ button {
   header h1 { font-size: 1.3rem; }
   .controls { grid-template-columns: 1fr; }
 }
+
+/* ── Copyright Footer ──────────────────────────────────── */
+.footer {
+  text-align: center;
+  padding: 24px 16px 16px;
+  margin-top: 32px;
+}
+
+.footer-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 40px;
+  backdrop-filter: blur(8px);
+}
+
+.footer-icon {
+  font-size: 1rem;
+  animation: footer-bob 3s ease-in-out infinite;
+}
+
+.footer-text {
+  font-size: 0.75rem;
+  color: var(--text2);
+  letter-spacing: 0.03em;
+  background: linear-gradient(90deg, var(--accent), var(--accent2), var(--accent3));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-size: 200% auto;
+  animation: shimmer 4s linear infinite;
+}
+
+@keyframes footer-bob {
+  0%, 100% { transform: translateY(0) rotate(-5deg); }
+  50%      { transform: translateY(-2px) rotate(5deg); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: 0% center; }
+  100% { background-position: 200% center; }
+}
+
+/* ── Floating Trakteer Button ──────────────────────────── */
+.kopi-float {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  width: 54px;
+  height: 54px;
+  background: #be1e2d;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  text-decoration: none;
+  cursor: pointer;
+  animation: kopi-float 3.5s ease-in-out infinite;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 4px 16px rgba(190, 30, 45, 0.3);
+}
+
+.kopi-float:hover {
+  transform: scale(1.12);
+  animation: none;
+}
+
+.kopi-float:hover .kopi-ring {
+  animation: none;
+  opacity: 0;
+}
+
+.kopi-float img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  display: block;
+  pointer-events: none;
+  animation: kopi-wobble 4s ease-in-out infinite;
+  transform-origin: center bottom;
+}
+
+.kopi-float:hover img {
+  animation: none;
+  transform: rotate(0deg);
+}
+
+.kopi-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid rgba(190, 30, 45, 0.5);
+  animation: kopi-ripple 2.4s ease-out infinite;
+  transition: opacity 0.3s ease;
+}
+
+.kopi-r2 { animation-delay: 1.2s; }
+
+@keyframes kopi-ripple {
+  0%   { transform: scale(1);   opacity: 0.7; }
+  100% { transform: scale(2.0); opacity: 0; }
+}
+
+@keyframes kopi-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-7px); }
+}
+
+@keyframes kopi-wobble {
+  0%, 55%  { transform: rotate(0deg); }
+  58%      { transform: rotate(-18deg); }
+  61%      { transform: rotate(16deg); }
+  64%      { transform: rotate(-12deg); }
+  67%      { transform: rotate(10deg); }
+  70%      { transform: rotate(-6deg); }
+  73%      { transform: rotate(4deg); }
+  76%, 100%{ transform: rotate(0deg); }
+}
+
+@media (max-width: 720px) {
+  .kopi-float {
+    bottom: 20px;
+    right: 20px;
+    width: 48px;
+    height: 48px;
+  }
+  .kopi-float img { width: 24px; height: 24px; }
+}
