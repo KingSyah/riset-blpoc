@@ -2,6 +2,8 @@
 
 Deep-dive into the POC/BLPOC system implementation. No file listing, just the mechanics.
 
+🔗 **Live Demo:** [kingsyah.github.io/riset-blpoc](https://kingsyah.github.io/riset-blpoc/)
+
 ---
 
 ## 1. Dataset & Image Loading
