@@ -1,24 +1,27 @@
 /* ============================================================
    Cross-Spectral Face Matching — POC/BLPOC Living Paper
-   UI Controller
+   UI Controller — faithful to SIMBLPOC_v2.m
    ============================================================ */
 
 // ── DOM refs ───────────────────────────────────────────────
 const canvasVisual  = document.getElementById('canvasVisual');
 const canvasThermal = document.getElementById('canvasThermal');
 const canvasResult  = document.getElementById('canvasResult');
+const canvas3D      = document.getElementById('canvas3D');
 const ctxV = canvasVisual.getContext('2d');
 const ctxT = canvasThermal.getContext('2d');
 
 const pairSlider = document.getElementById('pairSlider');
 const bwSlider   = document.getElementById('bwSlider');
-const winSlider  = document.getElementById('winSlider');
+const logSlider  = document.getElementById('logSlider');
 
 let cvReady      = false;
 let imagesLoaded = false;
 let visualImg    = null;
 let thermalImg   = null;
 let batchResults = [];
+let lastResult   = null;
+let viewMode     = '2d';
 
 // ── Logging ────────────────────────────────────────────────
 function log(msg, type = '') {
@@ -66,7 +69,6 @@ async function loadPair(id) {
     BLPoc.drawFit(canvasVisual, ctxV, visualImg);
     BLPoc.drawFit(canvasThermal, ctxT, thermalImg);
 
-    // Clear result canvas
     const ctxR = canvasResult.getContext('2d');
     ctxR.fillStyle = '#000'; ctxR.fillRect(0, 0, 256, 256);
     ctxR.fillStyle = '#555'; ctxR.font = '14px sans-serif'; ctxR.textAlign = 'center';
@@ -88,14 +90,23 @@ pairSlider.addEventListener('input', () => {
 });
 
 bwSlider.addEventListener('input', () => {
-  const v = parseInt(bwSlider.value) / 100;
-  document.getElementById('bwVal').textContent = v.toFixed(2);
-  document.getElementById('methodLabel').textContent = v >= 1.0 ? 'POC' : `BLPOC (α=${v.toFixed(2)})`;
+  document.getElementById('bwVal').textContent = parseInt(bwSlider.value);
+  updateMethodLabel();
 });
 
-winSlider.addEventListener('input', () => {
-  document.getElementById('winVal').textContent = (parseInt(winSlider.value) / 100).toFixed(2);
+logSlider.addEventListener('input', () => {
+  const v = parseInt(logSlider.value);
+  document.getElementById('logVal').textContent = v === 0 ? 'OFF' : `σ=${v}`;
+  updateMethodLabel();
 });
+
+function updateMethodLabel() {
+  const bw = parseInt(bwSlider.value);
+  const useLoG = parseInt(logSlider.value) > 0;
+  let label = `BLPOC(${bw})`;
+  if (useLoG) label = `LoG+${label}`;
+  document.getElementById('methodLabel').textContent = label;
+}
 
 document.getElementById('btnPrev').addEventListener('click', () => {
   const v = Math.max(1, parseInt(pairSlider.value) - 1);
@@ -107,20 +118,67 @@ document.getElementById('btnNext').addEventListener('click', () => {
   pairSlider.value = v; pairSlider.dispatchEvent(new Event('input'));
 });
 
+// ── 2D / 3D view toggle ───────────────────────────────────
+document.getElementById('btnView2D').addEventListener('click', () => {
+  viewMode = '2d';
+  document.getElementById('btnView2D').classList.add('active');
+  document.getElementById('btnView3D').classList.remove('active');
+  canvasResult.classList.remove('hidden');
+  canvasResult.classList.add('visible');
+  canvas3D.classList.remove('visible');
+  canvas3D.style.display = 'none';
+});
+
+document.getElementById('btnView3D').addEventListener('click', () => {
+  viewMode = '3d';
+  document.getElementById('btnView3D').classList.add('active');
+  document.getElementById('btnView2D').classList.remove('active');
+  canvasResult.classList.add('hidden');
+  canvasResult.classList.remove('visible');
+  canvas3D.classList.add('visible');
+  canvas3D.style.display = 'block';
+  Surface3D.init(canvas3D);
+  Surface3D.resize();
+  if (lastResult) {
+    Surface3D.render(lastResult.blpocMap, lastResult.blpocRows, lastResult.blpocCols);
+  }
+});
+
+window.addEventListener('resize', () => {
+  if (viewMode === '3d') Surface3D.resize();
+});
+
 // ── Process button ─────────────────────────────────────────
 document.getElementById('btnProcess').addEventListener('click', () => {
   if (!cvReady || !imagesLoaded) return log('OpenCV or images not ready', 'error');
 
-  const bw  = parseInt(bwSlider.value) / 100;
-  const win = parseInt(winSlider.value) / 100;
-  log(`Processing pair #${pairSlider.value} | BW=${bw.toFixed(2)} | α=${win.toFixed(2)}`, 'info');
+  const bw  = parseInt(bwSlider.value);
+  const loG = parseInt(logSlider.value);
+  const useLoG = loG > 0;
+
+  log(`Processing pair #${pairSlider.value} | BW=${bw} | LoG=${useLoG ? 'σ='+loG : 'OFF'}`, 'info');
 
   try {
-    const r = BLPoc.process(canvasVisual, canvasThermal, canvasResult, bw, win, (msg) => log('[POC] ' + msg, 'info'));
-    document.getElementById('peakVal').textContent  = r.peakValue.toFixed(6);
-    document.getElementById('peakLoc').textContent  = `(${r.peakX}, ${r.peakY})`;
-    document.getElementById('procTime').textContent = `${r.timeMs.toFixed(1)} ms`;
-    log(`✓ Peak=${r.peakValue.toFixed(6)} at (${r.peakX}, ${r.peakY}) in ${r.timeMs.toFixed(1)}ms`, 'ok');
+    const result = BLPoc.process(canvasVisual, canvasThermal, canvasResult, {
+      bandwidth: bw,
+      useLoG: useLoG,
+      loGsigma: loG,
+      debugLog: (msg) => log('[POC] ' + msg, 'info')
+    });
+
+    lastResult = result;
+
+    document.getElementById('peakVal').textContent  = result.blpocPeak.toFixed(6);
+    document.getElementById('peakLoc').textContent  = `(${result.peakX}, ${result.peakY})`;
+    document.getElementById('procTime').textContent = `${result.timeMs.toFixed(1)} ms`;
+
+    if (viewMode === '3d') {
+      Surface3D.init(canvas3D);
+      Surface3D.resize();
+      Surface3D.render(result.blpocMap, result.blpocRows, result.blpocCols);
+    }
+
+    log(`✓ POC peak=${result.pocPeak.toFixed(6)} | BLPOC peak=${result.blpocPeak.toFixed(6)} in ${result.timeMs.toFixed(1)}ms`, 'ok');
   } catch (err) {
     log(`Error: ${err.message || err}`, 'error');
     if (err.stack) log(err.stack.split('\n').slice(0,3).join(' | '), 'error');
@@ -140,9 +198,10 @@ document.getElementById('btnBatch').addEventListener('click', async () => {
   tbody.innerHTML = '';
   batchResults = [];
 
-  const bw  = parseInt(bwSlider.value) / 100;
-  const win = parseInt(winSlider.value) / 100;
-  const method = bw >= 1.0 ? 'POC' : `BLPOC(${bw.toFixed(2)})`;
+  const bw  = parseInt(bwSlider.value);
+  const loG = parseInt(logSlider.value);
+  const useLoG = loG > 0;
+  const method = (useLoG ? 'LoG+' : '') + `BLPOC(${bw})`;
 
   log(`Starting batch — ${BLPoc.MAX_ID} pairs…`, 'info');
 
@@ -154,10 +213,14 @@ document.getElementById('btnBatch').addEventListener('click', async () => {
     if (!imagesLoaded) { log(`Skipping #${i}`, 'warn'); continue; }
 
     try {
-      const r = BLPoc.process(canvasVisual, canvasThermal, canvasResult, bw, win);
-      batchResults.push({ id: i, ...r, method });
+      const r = BLPoc.process(canvasVisual, canvasThermal, canvasResult, {
+        bandwidth: bw,
+        useLoG: useLoG,
+        loGsigma: loG
+      });
+      batchResults.push({ id: i, pocPeak: r.pocPeak, blpocPeak: r.blpocPeak, peakX: r.peakX, peakY: r.peakY, timeMs: r.timeMs, method });
       const row = document.createElement('tr');
-      row.innerHTML = `<td>${i}</td><td>${r.peakValue.toFixed(6)}</td><td>(${r.peakX}, ${r.peakY})</td><td>${method}</td><td>${r.timeMs.toFixed(1)}</td>`;
+      row.innerHTML = `<td>${i}</td><td>${r.blpocPeak.toFixed(6)}</td><td>(${r.peakX}, ${r.peakY})</td><td>${method}</td><td>${r.timeMs.toFixed(1)}</td>`;
       tbody.appendChild(row);
     } catch (err) {
       log(`#${i} error: ${err.message || err}`, 'error');
@@ -173,9 +236,9 @@ document.getElementById('btnBatch').addEventListener('click', async () => {
 // ── CSV export ─────────────────────────────────────────────
 document.getElementById('btnExport').addEventListener('click', () => {
   if (!batchResults.length) return log('No batch results — run batch first', 'warn');
-  let csv = 'Pair,Peak Value,Peak X,Peak Y,Method,Time (ms)\n';
+  let csv = 'Pair,POC Peak,BLPOC Peak,Peak X,Peak Y,Method,Time (ms)\n';
   for (const r of batchResults)
-    csv += `${r.id},${r.peakValue.toFixed(6)},${r.peakX},${r.peakY},${r.method},${r.timeMs.toFixed(1)}\n`;
+    csv += `${r.id},${r.pocPeak.toFixed(6)},${r.blpocPeak.toFixed(6)},${r.peakX},${r.peakY},${r.method},${r.timeMs.toFixed(1)}\n`;
 
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
