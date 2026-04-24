@@ -101,11 +101,12 @@ const BLPoc = (() => {
   /**
    * @param {HTMLCanvasElement} canvasVis
    * @param {HTMLCanvasElement} canvasThm
+   * @param {HTMLCanvasElement} canvasOut   ← target for correlation map
    * @param {number} bandwidthLimit  0.1 – 1.0
    * @param {number} windowAlpha     0 – 1
    * @returns {{ peakValue, peakX, peakY, timeMs }}
    */
-  function process(canvasVis, canvasThm, bandwidthLimit, windowAlpha) {
+  function process(canvasVis, canvasThm, canvasOut, bandwidthLimit, windowAlpha) {
     const t0 = performance.now();
 
     // 1 ─ Read & greyscale
@@ -144,26 +145,46 @@ const BLPoc = (() => {
     cv.dft(fT, cT, cv.DFT_COMPLEX_OUTPUT);
     fV.delete(); fT.delete();
 
-    // 5 ─ Cross-Power Spectrum  F · G*
-    let cross = new cv.Mat();
-    cv.mulSpectrums(cV, cT, cross, 0, true);   // conjB = true
-    cV.delete(); cT.delete();
+    // 5 ─ Cross-Power Spectrum  F · G*  (manual — mulSpectrums unavailable in OpenCV.js)
+    //     F·G* = (ReF·ReG + ImF·ImG) + j(ImF·ReG − ReF·ImG)
+    let chV = new cv.MatVector(), chT = new cv.MatVector();
+    cv.split(cV, chV); cv.split(cT, chT);
+    let reV = chV.get(0), imV = chV.get(1);
+    let reT = chT.get(0), imT = chT.get(1);
+    chV.delete(); chT.delete(); cV.delete(); cT.delete();
+
+    let tA = new cv.Mat(), tB = new cv.Mat();
+    let crossRe = new cv.Mat(), crossIm = new cv.Mat();
+
+    // crossRe = reV*reT + imV*imT
+    cv.multiply(reV, reT, tA);
+    cv.multiply(imV, imT, tB);
+    cv.add(tA, tB, crossRe);
+
+    // crossIm = imV*reT - reV*imT
+    cv.multiply(imV, reT, tA);
+    cv.multiply(reV, imT, tB);
+    cv.subtract(tA, tB, crossIm);
+
+    tA.delete(); tB.delete(); reV.delete(); imV.delete(); reT.delete(); imT.delete();
 
     // 6 ─ Phase-only normalisation: divide by magnitude
-    let ch = new cv.MatVector();
-    cv.split(cross, ch);
-    let re = ch.get(0), im = ch.get(1);
-    ch.delete(); cross.delete();
+    //     mag = sqrt(re² + im²)
+    let re2 = new cv.Mat(), im2 = new cv.Mat(), sum2 = new cv.Mat(), mag = new cv.Mat();
+    cv.multiply(crossRe, crossRe, re2);
+    cv.multiply(crossIm, crossIm, im2);
+    cv.add(re2, im2, sum2);
+    cv.sqrt(sum2, mag);
+    re2.delete(); im2.delete(); sum2.delete();
 
-    let mag = new cv.Mat();
-    cv.magnitude(re, im, mag);
+    // Add epsilon to avoid /0
     let eps = new cv.Mat(FFT_SIZE, FFT_SIZE, cv.CV_32FC1, new cv.Scalar(1e-5));
     cv.add(mag, eps, mag); eps.delete();
 
     let nRe = new cv.Mat(), nIm = new cv.Mat();
-    cv.divide(re, mag, nRe);
-    cv.divide(im, mag, nIm);
-    re.delete(); im.delete(); mag.delete();
+    cv.divide(crossRe, mag, nRe);
+    cv.divide(crossIm, mag, nIm);
+    crossRe.delete(); crossIm.delete(); mag.delete();
 
     let norm = new cv.Mat();
     let nch = new cv.MatVector();
@@ -191,7 +212,7 @@ const BLPoc = (() => {
     cv.normalize(spatial, disp, 0, 255, cv.NORM_MINMAX, cv.CV_8UC1);
     let colour = new cv.Mat();
     cv.applyColorMap(disp, colour, cv.COLORMAP_JET);
-    cv.imshow(canvasResult, colour);
+    cv.imshow(canvasOut, colour);
     disp.delete(); colour.delete(); spatial.delete();
 
     return { peakValue: maxV, peakX: maxL.x, peakY: maxL.y, timeMs: performance.now() - t0 };

@@ -116,7 +116,7 @@ document.getElementById('btnProcess').addEventListener('click', () => {
   log(`Processing pair #${pairSlider.value} | BW=${bw.toFixed(2)} | α=${win.toFixed(2)}`, 'info');
 
   try {
-    const r = BLPoc.process(canvasVisual, canvasThermal, bw, win);
+    const r = BLPoc.process(canvasVisual, canvasThermal, canvasResult, bw, win);
     document.getElementById('peakVal').textContent  = r.peakValue.toFixed(6);
     document.getElementById('peakLoc').textContent  = `(${r.peakX}, ${r.peakY})`;
     document.getElementById('procTime').textContent = `${r.timeMs.toFixed(1)} ms`;
@@ -153,7 +153,7 @@ document.getElementById('btnBatch').addEventListener('click', async () => {
     if (!imagesLoaded) { log(`Skipping #${i}`, 'warn'); continue; }
 
     try {
-      const r = BLPoc.process(canvasVisual, canvasThermal, bw, win);
+      const r = BLPoc.process(canvasVisual, canvasThermal, canvasResult, bw, win);
       batchResults.push({ id: i, ...r, method });
       const row = document.createElement('tr');
       row.innerHTML = `<td>${i}</td><td>${r.peakValue.toFixed(6)}</td><td>(${r.peakX}, ${r.peakY})</td><td>${method}</td><td>${r.timeMs.toFixed(1)}</td>`;
